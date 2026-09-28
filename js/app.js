@@ -1,0 +1,95 @@
+/* Hash router + interactions. All writes are local demo state. */
+const publicPages={home:homePage,programs:catalogPage,program:programPage,'hr-path':pathPage,'soft-skills':softPage,schedule:schedulePage,bembi:bembiPage,corporate:corporatePage,about:aboutPage,consult:consultPage,login:loginPage,checkout:checkoutPage,verify:verifyPage,guide:guidePage};
+const privatePages={learner:learnerPage,'my-learning':myLearningPage,classroom:classroomPage,exam:examPage,assignments:assignmentsPage,'my-schedule':mySchedulePage,certificates:certificatesPage,orders:ordersPage,community:communityPage,assistant:assistantPage,profile:profilePage,trainer:trainerPage,'trainer-classes':trainerClassesPage,reviews:reviewsPage,earnings:earningsPage,company:companyPage,team:teamPage,'company-reports':reportsPage,invoices:invoicesPage,admin:adminPage,'manage-programs':manageProgramsPage,cohorts:cohortsPage,finance:financialPage,'certificate-admin':certificateAdminPage,notifications:notificationsPage,settings:settingsPage};
+function render({scroll=true}={}){
+ let [route,query]=(location.hash.replace(/^#\/?/,'')||'home').split('?');
+ const q=new URLSearchParams(query||'');
+ const aliases={catalog:'programs',detail:'program',path:'hr-path',dashboard:'learner',myclasses:'my-learning',learn:'classroom',quiz:'exam',assignment:'assignments',ai:'assistant',mentors:'bembi',business:'corporate',mentor:'trainer',presentation:'guide'};
+ route=aliases[route]||route;
+ if(!publicPages[route]&&!privatePages[route])route='home';
+ state.route=route;
+ if(q.has('id')&&programs.some(p=>p.id===q.get('id')))state.program=q.get('id');
+ if(q.has('format')&&formats.includes(q.get('format')))state.format=q.get('format');
+ if(q.get('type')==='corporate')state.checkoutType='corporate';
+ const title=Object.values(screenGroups).flat().find(x=>x[0]===route)?.[1]||'Panduan platform';
+ document.title=title+' — AsahKarya';
+ $('#app').innerHTML=(publicPages[route]?header()+`<main id="main">${publicPages[route]()}</main>`+footer():shell(privatePages[route]()))+launcher();
+ if(route==='programs'){filterPrograms();$('#program-sort').value=state.sort;$('#level-filter').value=state.level||'Semua level'}
+ if(route==='finance')calculateFinance();
+ if(route==='verify'&&q.get('id'))verifyCertificate(q.get('id'));
+ if(scroll)window.scrollTo(0,0);
+}
+function filterPrograms(){const list=programs.filter(p=>(state.category==='Semua'||p.category===state.category)&&(state.format==='Semua format'||p.format===state.format)&&(!state.level||state.level==='Semua level'||p.level===state.level)&&(p.title+' '+p.category+' '+p.skills.join(' ')).toLowerCase().includes(state.query.toLowerCase()));if(state.sort==='price-low')list.sort((a,b)=>a.price-b.price);if(state.sort==='price-high')list.sort((a,b)=>b.price-a.price);$('#program-results').innerHTML=list.length?list.map(programCard).join(''):empty('Belum ada program yang cocok.','Coba kata kunci atau format lainnya.',btn('reset-filters','Reset filter','btn primary'));$('#result-count').textContent=list.length+' program untukmu';}
+function download(name,data,mime='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([data],{type:mime}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function csv(name,rows){const str=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');download(name,'\uFEFF'+str,'text/csv;charset=utf-8')}
+const certificateBase='https://asahkarya-academy.ricky-ramadhan20.chatgpt.site/';
+function verifyCertificate(value){const id=value.trim().toUpperCase();const found=['AK-DEMO-2026-001','AK-DEMO-2026-002'].includes(id);$('#verify-result').innerHTML=found?`<div class="notice green">${badge('Record contoh ditemukan','green')}<h3 class="mt">Nadia Putri</h3><p>${id.endsWith('002')?'Recruitment & Interview Essentials':'Communication & Presentation at Work'}</p><div class="money-line"><span>ID sertifikat</span><b>${id}</b></div><div class="money-line"><span>Penerbit</span><b>AsahKarya · Demo</b></div><small>Ini data contoh statis, bukan verifikasi sertifikat produksi.</small></div>`:`<div class="notice orange"><b>Sertifikat tidak ditemukan.</b><br>Periksa penulisan ID. Untuk mencoba demo, gunakan AK-DEMO-2026-001.</div>`;}
+function financeValues(form){const d=new FormData(form),num=k=>Math.max(0,Number(d.get(k))||0);const gross=num('participants')*num('price'),cost=num('venue')+num('other'),net=gross-cost,scheme=d.get('scheme'),share=scheme==='dedicated'?Math.max(0,net)*.3:num('fixed');return{gross,cost,net,share,remaining:net-share,scheme}}
+function calculateFinance(){let v=financeValues($('#finance-form'));state.finance=v;$('#finance-result').innerHTML=`${[['Pendapatan kotor',v.gross],['Biaya operasional',v.cost],['Net sebelum kompensasi',v.net]].map(([t,n])=>`<div class="money-line"><span>${t}</span><b>${rupiah(n)}</b></div>`).join('')}<div class="payout"><small>${v.scheme==='dedicated'?'Hak trainer · 30% dari net positif':'Hak trainer · fee tetap'}</small><strong>${rupiah(v.share)}</strong><small>${v.scheme==='dedicated'?'Profit sharing':'Tidak bergantung pada pendapatan bersih'}</small></div><div class="money-line total"><span>Sisa setelah trainer</span><b>${rupiah(v.remaining)}</b></div>${v.net<0?'<div class="notice orange">Net income negatif. Sharing dedicated disimulasikan Rp0; penanganan kerugian membutuhkan kesepakatan.</div>':''}`;}
+function askAssistant(q){state.chat.push({user:true,text:q});const text=/interview|wawancara|pertanyaan/i.test(q)?'Mulai dari kompetensi target. Ajukan pertanyaan pengalaman: “Ceritakan saat Anda menangani keluhan klien yang kompleks.” Gali situasi, tindakan, dan hasilnya. Rujukan: Materi 3–4, Recruitment Essentials.':/scorecard|skor|nilai/i.test(q)?'Gunakan indikator yang sama untuk peran yang sama. Catat bukti jawaban, lalu beri skor berdasarkan deskripsi perilaku yang disepakati. Rujukan: Materi 5, Scorecard dan evaluasi kandidat.':'Pertanyaan ini belum tercakup dalam materi demo. Silakan kembali ke modul atau diskusikan dengan trainer. Pada produksi, asisten perlu mencari sumber materi yang disetujui sebelum menjawab.';state.chat.push({text});render({scroll:false});$('#chat').scrollTop=$('#chat').scrollHeight;}
+document.addEventListener('input',e=>{if(e.target.id==='program-search'){state.query=e.target.value;filterPrograms()}if(e.target.id==='lesson-notes'){let notes=getLocal('notes',{});notes[state.lesson]=e.target.value;saveLocal('notes',notes)}});
+document.addEventListener('change',e=>{const el=e.target;if(el.name==='format'&&state.route==='programs'){state.format=el.value;filterPrograms()}if(el.id==='program-sort'){state.sort=el.value;filterPrograms()}if(el.id==='level-filter'){state.level=el.value;filterPrograms()}if(el.id==='finance-scheme')$('#fixed-fee-field').classList.toggle('hide',el.value!=='freelance');if(el.id==='invoice-top'){saveLocal('invoice-top',Number(el.value));render({scroll:false})}});
+document.addEventListener('click',e=>{
+ const el=e.target.closest('[data-action],[data-category],[data-homecategory],[data-detailtab],[data-lessontab],[data-lesson],[data-scheduleformat],[data-trainertype]');if(!el)return;
+ if(el.dataset.category){state.category=el.dataset.category;render({scroll:false})}
+ if(el.dataset.homecategory){state.homeTab=el.dataset.homecategory;render({scroll:false})}
+ if(el.dataset.detailtab){state.detailTab=el.dataset.detailtab;render({scroll:false})}
+ if(el.dataset.lessontab){state.lessonTab=el.dataset.lessontab;render({scroll:false})}
+ if(el.dataset.lesson!==undefined){state.lesson=Number(el.dataset.lesson);state.lessonTab='materi';render({scroll:false})}
+ if(el.dataset.scheduleformat){state.scheduleFormat=el.dataset.scheduleformat;render({scroll:false})}
+ if(el.dataset.trainertype){state.trainerType=el.dataset.trainertype;render({scroll:false})}
+ switch(el.dataset.action){
+ case'mobile-menu':$('#navlinks').classList.toggle('open');el.setAttribute('aria-expanded',$('#navlinks').classList.contains('open'));break;
+ case'roles':modal('Pilih pengalaman AsahKarya',`<p>Jelajahi setiap peran untuk presentasi. Ini pergantian tampilan demo, bukan kontrol akses produksi.</p><div class="role-cards">${[['learner','Peserta','Belajar, ujian, sertifikat'],['trainer','Trainer','Kelas, feedback, pendapatan'],['company','Corporate','Tim, laporan, invoice'],['admin','Admin','Program dan operasional']].map(([r,t,d])=>`<a class="role-card" href="#/${r}" onclick="document.querySelector('#modal').close()"><strong>${t} ↗</strong><small>${d}</small></a>`).join('')}</div><div class="mt">${a('guide','Lihat semua halaman →','link')}</div>`);break;
+ case'reset-filters':state.category='Semua';state.format='Semua format';state.level='Semua level';state.query='';state.sort='recommended';if(location.hash.includes('?')){location.hash='/programs'}else render({scroll:false});break;
+ case'lesson-prev':state.lesson=Math.max(0,state.lesson-1);render({scroll:false});break;
+ case'lesson-complete':{let list=progress();if(!list.includes(state.lesson))list.push(state.lesson);saveLocal('progress',list);if(state.lesson<5){state.lesson++;state.lessonTab='materi';render({scroll:false});toast('Progres tersimpan. Lanjutkan materi berikutnya.')}else{render({scroll:false});toast('Semua materi selesai. Ujian sekarang terbuka.')}break;}
+ case'retry-exam':state.examResult=null;state.examAnswers={};render();break;
+ case'download-scorecard':csv('AsahKarya-Interview-Scorecard.csv',[['Kompetensi','Pertanyaan','Bukti jawaban','Skor 1-5','Catatan'],['Kolaborasi','Ceritakan pengalaman menyelesaikan perbedaan prioritas tim.','','',''],['Problem solving','Ceritakan cara Anda menyelesaikan keluhan pelanggan.','','','']]);break;
+ case'join-live':modal('Ruang live · HR Professional Intensive','<p>12 Oktober 2026 · 19.00–21.00 WIB</p><div class="notice orange">Sesi contoh belum memiliki tautan meeting. Pada produksi, akses hanya ditampilkan untuk peserta terdaftar sesuai jadwal.</div><h3>Persiapan sebelum sesi</h3><ul><li>Siapkan contoh tantangan HR di organisasi Anda.</li><li>Baca pengantar Strategic Human Capital.</li><li>Gunakan nama peserta yang terdaftar.</li></ul>');break;
+ case'calendar':download('AsahKarya-Live-Class.ics','BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//AsahKarya//Demo//ID\r\nBEGIN:VEVENT\r\nUID:ak-demo-hr-20261012@asahkarya.demo\r\nDTSTAMP:20260928T000000Z\r\nDTSTART:20261012T120000Z\r\nDTEND:20261012T140000Z\r\nSUMMARY:DEMO - HR Professional Intensive\r\nDESCRIPTION:Jadwal ilustrasi AsahKarya. Bukan kelas aktif.\r\nEND:VEVENT\r\nEND:VCALENDAR','text/calendar;charset=utf-8');break;
+ case'ticket':modal('Tiket peserta · Demo',`<span class="badge orange">Offline workshop</span><h3 class="mt">Communication & Presentation at Work</h3><p>Nadia Putri<br>17 Oktober · 09.00–16.00 WIB<br>Jakarta Selatan · venue menyusul</p><div class="checkin-code">AK-0017</div><div class="notice">Kode tiket contoh; bukan bukti pembelian atau akses acara nyata.</div>`);break;
+ case'attendance':saveLocal('attendance',true);$('#attendance-state').className='notice green';$('#attendance-state').textContent='✓ Kehadiran demo tercatat pada perangkat ini.';break;
+ case'print-certificate':window.print();break;
+ case'share-certificate':{const type=state.certificateType==='recruitment'?'002':'001';const link=certificateBase+'#/verify?id=AK-DEMO-2026-'+type;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(link).then(()=>toast('Tautan sertifikat demo disalin')).catch(()=>modal('Tautan sertifikat',`<input style="width:100%" readonly value="${link}">`));else modal('Tautan sertifikat',`<input style="width:100%" readonly value="${link}">`);break;}
+ case'cert-recruitment':state.certificateType='recruitment';render();break;
+ case'cert-communication':state.certificateType='communication';render();break;
+ case'prompt-interview':askAssistant('Bagaimana menyusun pertanyaan interview?');break;
+ case'prompt-scorecard':askAssistant('Bagaimana membuat scorecard kandidat?');break;
+ case'roster':modal('Daftar peserta · demo',table(['Peserta','Kehadiran'],people.map((p,i)=>[p.name,badge(i===2?'Belum hadir':'Hadir',i===2?'orange':'green')])));break;
+ case'session-material':{let p=programs.find(x=>x.id===el.dataset.program);modal('Materi sesi',`<h3>${p.title}</h3><ol>${p.topics.slice(0,8).map(t=>`<li>${t}</li>`).join('')}</ol><div class="notice">Materi lengkap trainer perlu ditambahkan melalui backend media pada implementasi produksi.</div>`);break;}
+ case'download-settlement':csv('AsahKarya-Settlement-Demo.csv',[['Komponen','Rupiah'],['Pendapatan',15000000],['Operasional',5000000],['Net sebelum sharing',10000000],['Trainer 30%',3000000],['Sisa',7000000]]);break;
+ case'export-team':csv('AsahKarya-Laporan-Tim.csv',[['Peserta','Divisi','Progres','Pre-test','Post-test','Status'],...people.map(p=>[p.name,p.team,p.progress,p.pre,p.post??'',p.status])]);break;
+ case'followup-plan':modal('Rencana tindak lanjut',`<form id="followup-form">${field('Fokus kompetensi','<input name="skill" required>')}${field('Tindakan 30 hari','<textarea name="plan" required></textarea>')}<button class="btn primary">Simpan rencana demo</button></form>`);break;
+ case'download-invoice':csv('AsahKarya-Invoice-Demo.csv',[['Invoice','Perusahaan','Tanggal','TOP hari','Jatuh tempo','Total','Status'],['INV-AK-DEMO-001','PT Nusa Jasa','2026-10-01',getLocal('invoice-top',30),getLocal('invoice-top',30)===14?'2026-10-15':'2026-10-31',15000000,'Menunggu pembayaran - demo']]);break;
+ case'new-program':modal('Buat draft program',`<form id="draft-form">${field('Nama program','<input name="title" required>')}${field('Kategori','<select name="category">'+categories.slice(1).map(c=>`<option>${c}</option>`).join('')+'</select>')}${field('Format','<select name="format">'+formats.slice(1).map(c=>`<option>${c}</option>`).join('')+'</select>')}<button class="btn primary">Simpan draft</button></form>`);break;
+ case'draft-next':modal('Tahap pengembangan draft','<p>Draft sudah tersimpan lokal. Tahap berikutnya: tetapkan hasil belajar, kurikulum, materi, trainer, harga, dan kriteria kelulusan.</p><div class="notice">Editor kurikulum lengkap merupakan tahap implementasi backend.</div>');break;
+ case'approve-settlement':saveLocal('settlement',{...state.finance,status:'Direkonsiliasi demo'});$('#settlement-state').innerHTML='<div class="notice green">✓ Rekonsiliasi demo ditandai. Belum ada pembayaran atau persetujuan nyata.</div>';break;
+ case'issue-certificate':saveLocal('certificate-issued',true);$('#issued-state').innerHTML='<div class="notice green">✓ Sertifikat demo AK-DEMO-2026-001 tercatat. '+a('verify?id=AK-DEMO-2026-001','Lihat record →','link')+'</div>';break;
+ }
+});
+document.addEventListener('submit',e=>{
+ e.preventDefault();const form=e.target,d=new FormData(form);
+ switch(form.id){
+ case'consult-form':{const payload=Object.fromEntries(d);saveLocal('consultation',payload);$('#consult-result').innerHTML=`<div class="notice green"><b>Ringkasan kebutuhan siap.</b><br>${esc(payload.type)} · ${esc(payload.count)} peserta · ${esc(payload.format)}<br>${esc(payload.needs)}<br><small>Disimpan lokal. Belum dikirim ke AsahKarya.</small></div>`;break;}
+ case'login-form':saveLocal('profile',{...getLocal('profile',{}),name:d.get('name'),email:d.get('email')});location.hash='/learner';break;
+ case'checkout-form':{let orders=getLocal('orders',[]),p=currentProgram();orders.unshift({program:p.id,date:new Date().toLocaleDateString('id-ID'),method:d.get('payment'),total:p.price,name:d.get('name'),email:d.get('email')});saveLocal('orders',orders);state.checkoutDone=true;render();break;}
+ case'verify-form':verifyCertificate(String(d.get('id')));break;
+ case'exam-form':{let correct=0;quizQuestions.forEach((q,i)=>{state.examAnswers[i]=Number(d.get('q'+i));if(state.examAnswers[i]===q.correct)correct++});state.examResult=Math.round(correct/quizQuestions.length*100);let attempts=getLocal('exam-attempts',[]);attempts.push({score:state.examResult,date:new Date().toISOString()});saveLocal('exam-attempts',attempts);saveLocal('exam-best',Math.max(getLocal('exam-best',0),state.examResult));render();break;}
+ case'assignment-form':{const url=String(d.get('url'));if(!/^https?:\/\//i.test(url)){toast('Gunakan link http atau https yang valid.');break}saveLocal('submission',{url,note:d.get('note')});$('#assignment-status').innerHTML='<div class="notice green">✓ Tugas demo tersimpan. Buka workspace trainer untuk mencoba review.</div>';break;}
+ case'post-form':{const posts=getLocal('posts',[]);posts.unshift({title:d.get('title'),body:d.get('body'),name:getLocal('profile',{}).name||'Nadia Putri'});saveLocal('posts',posts);render({scroll:false});toast('Posting tersimpan di demo lokal');break;}
+ case'chat-form':askAssistant(String(d.get('q')));break;
+ case'profile-form':saveLocal('profile',{...Object.fromEntries(d),emailReminder:d.has('emailReminder'),waReminder:d.has('waReminder')});toast('Preferensi tersimpan di browser ini');break;
+ case'session-form':saveLocal('session-note',Object.fromEntries(d));$('#session-result').innerHTML='<div class="notice green">Catatan sesi demo tersimpan.</div>';break;
+ case'review-form':saveLocal('review',{score:Number(d.get('score')),feedback:d.get('feedback'),decision:d.get('decision')});toast('Feedback tersimpan dan tampil pada halaman tugas peserta');break;
+ case'assign-team-form':{const selected=d.getAll('people');if(!selected.length){toast('Pilih minimal satu peserta.');break}const list=getLocal('team-assignments',[]);list.unshift({program:d.get('program'),names:selected.map(i=>people[Number(i)].name)});saveLocal('team-assignments',list);render({scroll:false});toast('Penugasan demo tersimpan');break;}
+ case'followup-form':saveLocal('followup',Object.fromEntries(d));$('#modal').close();toast('Rencana tindak lanjut tersimpan');break;
+ case'draft-form':{const drafts=getLocal('drafts',[]);drafts.push(Object.fromEntries(d));saveLocal('drafts',drafts);$('#modal').close();render({scroll:false});toast('Draft program tersimpan');break;}
+ case'attendance-form':{const selected=d.getAll('present'),presence={};people.forEach((p,i)=>presence[i]=selected.includes(String(i)));saveLocal('cohort-attendance',presence);$('#cohort-result').innerHTML=`<div class="notice green">${selected.length} dari ${people.length} peserta ditandai hadir.</div>`;break;}
+ case'finance-form':calculateFinance();break;
+ case'notification-form':{let body=String(d.get('body')).replaceAll('{{nama}}','Nadia').replaceAll('{{program}}','HR Professional Intensive').replaceAll('{{tanggal}}','12 Oktober 2026').replaceAll('{{jam}}','19.00 WIB');$('#notification-preview').innerHTML=`${badge(esc(d.get('channel'))+' · '+esc(d.get('type')))}<p class="mt">${esc(body)}</p><small>Preview saja; tidak dikirim.</small>`;break;}
+ case'settings-form':saveLocal('settings',Object.fromEntries(d));toast('Draft konfigurasi lokal tersimpan');break;
+ }
+});
+window.addEventListener('hashchange',()=>{if($('#modal').open)$('#modal').close();state.checkoutDone=false;render()});
+render();
