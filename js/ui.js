@@ -8,7 +8,7 @@ const state={route:'home',program:'hr-intensive',category:'Semua',format:'Semua 
 const progress=()=>getLocal('progress',[]);const currentProgram=()=>programs.find(p=>p.id===state.program)||programs[0];
 const a=(r,t,c='btn')=>`<a href="#/${r}" class="${c}">${t}</a>`;
 const btn=(action,t,c='btn',extra='')=>`<button type="button" class="${c}" data-action="${action}" ${extra}>${t}</button>`;
-const brand=(light=false)=>`<a href="#/home" class="brand ${light?'light':''}" aria-label="AsahKarya beranda"><span class="brand-mark"><img src="assets/asahkarya-logo.jpg" alt=""></span><span class="brand-word"><em>asah</em>karya<span style="color:var(--orange)">.</span></span></a>`;
+const brand=(light=false)=>`<a href="#/home" class="brand ${light?'light':''}" aria-label="AsahKarya beranda"><img src="assets/asahkarya-logo.png" alt="AsahKarya" class="brand-logo"></a>`;
 const badge=(t,c='')=>`<span class="badge ${c}">${t}</span>`;
 const bar=n=>`<div class="progress"><span style="width:${Math.max(0,Math.min(100,n))}%"></span></div>`;
 const heading=(t,d,action='')=>`<div class="section-head"><div><h1>${t}</h1><p>${d}</p></div>${action}</div>`;
